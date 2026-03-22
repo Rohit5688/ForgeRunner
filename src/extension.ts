@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import 'reflect-metadata';
 import { container } from './core/container.js';
 import { TYPES } from './core/types.js';
@@ -156,7 +157,12 @@ export async function activate(context: vscode.ExtensionContext) {
             mcpBridge?.connect();
         }),
         vscode.commands.registerCommand('forge-runner.showReport', () => {
-            const terminal = vscode.window.createTerminal('Playwright Report');
+            const wsFolder = vscode.workspace.workspaceFolders?.[0];
+            const config = vscode.workspace.getConfiguration('forge-runner.playwright');
+            const projectRoot = config.get<string>('projectRoot', '');
+            const basePath = wsFolder?.uri.fsPath || '';
+            const cwd = projectRoot ? path.join(basePath, projectRoot) : basePath;
+            const terminal = vscode.window.createTerminal({ name: 'Playwright Report', cwd });
             terminal.show();
             terminal.sendText('npx playwright show-report');
         }),
@@ -168,7 +174,12 @@ export async function activate(context: vscode.ExtensionContext) {
                 title: 'Select Playwright Trace File'
             });
             if (uri && uri[0]) {
-                const terminal = vscode.window.createTerminal('Playwright Trace');
+                const wsFolder = vscode.workspace.workspaceFolders?.[0];
+                const config = vscode.workspace.getConfiguration('forge-runner.playwright');
+                const projectRoot = config.get<string>('projectRoot', '');
+                const basePath = wsFolder?.uri.fsPath || '';
+                const cwd = projectRoot ? path.join(basePath, projectRoot) : basePath;
+                const terminal = vscode.window.createTerminal({ name: 'Playwright Trace', cwd });
                 terminal.show();
                 terminal.sendText(`npx playwright show-trace "${uri[0].fsPath}"`);
             }

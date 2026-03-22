@@ -11,8 +11,8 @@ export class WorkspaceManager {
      */
     public async findFeatureFiles(): Promise<vscode.Uri[]> {
         const config = vscode.workspace.getConfiguration('forge-runner.playwright');
-        const featureFolder = config.get<string>('featureFolder', 'features');
-        // If featureFolder is provided, search only within it
+        const featureFolder = config.get<string>('featureFolder', '');
+        // Only scope to a folder if the user explicitly configured one
         const pattern = featureFolder ? `${featureFolder}/**/*.feature` : '**/*.feature';
         return vscode.workspace.findFiles(pattern, '**/node_modules/**');
     }
@@ -22,16 +22,27 @@ export class WorkspaceManager {
      */
     public async findStepDefinitionFiles(): Promise<vscode.Uri[]> {
         const config = vscode.workspace.getConfiguration('forge-runner.playwright');
-        const stepsFolder = config.get<string>('stepsFolder', 'steps');
-        const stepsFilePattern = config.get<string>('stepsFilePattern', '**/*.steps.{js,ts}');
+        const stepsFolder = config.get<string>('stepsFolder', '');
+        const stepsFilePattern = config.get<string>('stepsFilePattern', '');
         
-        let pattern = stepsFilePattern;
-        if (stepsFolder) {
+        let pattern: string;
+        if (stepsFolder && stepsFilePattern) {
+            // Both folder and pattern specified — scope the pattern to the folder
             pattern = `${stepsFolder}/${stepsFilePattern}`;
+        } else if (stepsFilePattern) {
+            // Only pattern specified — search everywhere
+            pattern = stepsFilePattern;
+        } else if (stepsFolder) {
+            // Only folder specified — find all TS files in that folder
+            pattern = `${stepsFolder}/**/*.ts`;
+        } else {
+            // Nothing configured — broad search (original behavior)
+            pattern = '**/*.ts';
         }
         
         return vscode.workspace.findFiles(pattern, '**/node_modules/**');
     }
+
 
     /**
      * Reads the content of a file URI.

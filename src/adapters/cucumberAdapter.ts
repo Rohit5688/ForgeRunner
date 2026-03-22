@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { injectable, inject } from 'inversify';
 import { TYPES } from '../core/types.js';
 import { IBddAdapter } from './adapter.js';
@@ -14,6 +15,18 @@ export class CucumberAdapter implements IBddAdapter {
     constructor(
         @inject(TYPES.TestStateStore) private testStateStore: TestStateStore
     ) {}
+
+    /**
+     * Resolves the effective execution directory from workspace + projectRoot config.
+     */
+    private getExecutionDir(): string {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        const config = vscode.workspace.getConfiguration('forge-runner.playwright');
+        const projectRoot = config.get<string>('projectRoot', '');
+
+        const basePath = workspaceFolder?.uri.fsPath || '';
+        return projectRoot ? path.join(basePath, projectRoot) : basePath;
+    }
 
     private getCucumberArgs(request: vscode.TestRunRequest, run: vscode.TestRun): string[] {
         const args: string[] = [];
@@ -52,33 +65,33 @@ export class CucumberAdapter implements IBddAdapter {
         run: vscode.TestRun,
         controller: vscode.TestController
     ): Promise<void> {
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            run.appendOutput('No workspace folder found.\\r\\n');
+        const executionDir = this.getExecutionDir();
+        if (!executionDir) {
+            run.appendOutput('No workspace folder found.\r\n');
             return;
         }
 
         try {
-            run.appendOutput('Running Standalone Cucumber tests...\\r\\n');
+            run.appendOutput('Running Standalone Cucumber tests...\r\n');
             const args = this.getCucumberArgs(request, run);
             
             const command = `npx cucumber-js -f json:cucumber-report.json ${args.join(' ')}`.trim();
             
-            const { stdout, stderr } = await execAsync(command, { cwd: workspaceFolder.uri.fsPath });
+            const { stdout, stderr } = await execAsync(command, { cwd: executionDir });
             
             if (stderr && !stderr.includes('debugger')) {
-                run.appendOutput(`Stderr during execution: ${stderr}\\r\\n`);
+                run.appendOutput(`Stderr during execution: ${stderr}\r\n`);
             }
-            run.appendOutput(`Cucumber output:\\r\\n${stdout}\\r\\n`);
+            run.appendOutput(`Cucumber output:\r\n${stdout}\r\n`);
 
         } catch (error: any) {
             if (error.stdout) {
-                run.appendOutput('Cucumber reported test failures:\\r\\n' + error.stdout + '\\r\\n');
+                run.appendOutput('Cucumber reported test failures:\r\n' + error.stdout + '\r\n');
             } else {
-                run.appendOutput(`Execution failed critically: ${error.message}\\r\\n`);
+                run.appendOutput(`Execution failed critically: ${error.message}\r\n`);
             }
         } finally {
-            run.appendOutput('Test run completed.\\r\\n');
+            run.appendOutput('Test run completed.\r\n');
             run.end();
         }
     }
@@ -91,19 +104,21 @@ export class CucumberAdapter implements IBddAdapter {
     ): Promise<void> {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
-            run.appendOutput('No workspace folder found.\\r\\n');
+            run.appendOutput('No workspace folder found.\r\n');
             return;
         }
 
+        const executionDir = this.getExecutionDir();
+
         try {
             const args = this.getCucumberArgs(request, run);
-            run.appendOutput(`Starting Cucumber Debugger with args: ${args.join(' ')}\\r\\n`);
+            run.appendOutput(`Starting Cucumber Debugger with args: ${args.join(' ')}\r\n`);
 
             const debugConfig: vscode.DebugConfiguration = {
                 type: 'node',
                 request: 'launch',
                 name: 'Debug Standalone Cucumber',
-                cwd: workspaceFolder.uri.fsPath,
+                cwd: executionDir,
                 runtimeExecutable: 'npx',
                 runtimeArgs: [
                     'cucumber-js',
@@ -111,21 +126,27 @@ export class CucumberAdapter implements IBddAdapter {
                 ],
                 console: 'internalConsole',
                 internalConsoleOptions: 'neverOpen',
-                outputCapture: 'std'
+                outputCapture: 'std',
+                skipFiles: [
+                    '<node_internals>/**'
+                ]
             };
 
-            await vscode.debug.startDebugging(workspaceFolder, debugConfig);
+            const started = await vscode.debug.startDebugging(workspaceFolder, debugConfig);
+            if (!started) {
+                throw new Error('Failed to start debug session.');
+            }
             
             const disposable = vscode.debug.onDidTerminateDebugSession((session) => {
                 if (session.name === debugConfig.name) {
-                    run.appendOutput('Debug session ended.\\r\\n');
+                    run.appendOutput('Debug session ended.\r\n');
                     run.end();
                     disposable.dispose();
                 }
             });
 
         } catch (error: any) {
-            run.appendOutput(`Failed to start debugger: ${error.message}\\r\\n`);
+            run.appendOutput(`Failed to start debugger: ${error.message}\r\n`);
             run.end();
         }
     }

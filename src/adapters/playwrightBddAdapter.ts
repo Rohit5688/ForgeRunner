@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { injectable, inject } from 'inversify';
 import { TYPES } from '../core/types.js';
 import { IBddAdapter } from './adapter.js';
@@ -70,7 +71,6 @@ export class PlaywrightBddAdapter implements IBddAdapter {
         const configPath = config.get<string>('configPath', 'playwright.config.ts');
         const projectRootRelative = config.get<string>('projectRoot', '');
         
-        const path = require('path');
         const executionDir = projectRootRelative 
             ? path.join(workspaceFolder.uri.fsPath, projectRootRelative) 
             : workspaceFolder.uri.fsPath;
@@ -124,7 +124,6 @@ export class PlaywrightBddAdapter implements IBddAdapter {
         const configPath = config.get<string>('configPath', 'playwright.config.ts');
         const projectRootRelative = config.get<string>('projectRoot', '');
         
-        const path = require('path');
         const executionDir = projectRootRelative 
             ? path.join(workspaceFolder.uri.fsPath, projectRootRelative) 
             : workspaceFolder.uri.fsPath;
@@ -190,7 +189,7 @@ export class PlaywrightBddAdapter implements IBddAdapter {
                 this.processSuite(suite, run, controller, null);
             }
         } catch (e: any) {
-            run.appendOutput(`Failed to parse test results JSON: ${e.message}\\r\\n`);
+            run.appendOutput(`Failed to parse test results JSON: ${e.message}\r\n`);
         }
     }
 
@@ -239,7 +238,7 @@ export class PlaywrightBddAdapter implements IBddAdapter {
                     }
                 }
             } else {
-                run.appendOutput(`Could not map Playwright test "${test.title}" back to VS Code UI.\\r\\n`);
+                run.appendOutput(`Could not map Playwright test "${test.title}" back to VS Code UI.\r\n`);
             }
         }
 

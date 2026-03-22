@@ -154,18 +154,18 @@
         },
         "forge-runner.playwright.featureFolder": {
           "type": "string",
-          "default": "features",
-          "description": "Folder where .feature files are located."
+          "default": "",
+          "description": "Folder where .feature files are located (e.g., 'features'). Leave empty to scan the entire workspace."
         },
         "forge-runner.playwright.stepsFolder": {
           "type": "string",
-          "default": "steps",
-          "description": "Folder where step definitions are located."
+          "default": "",
+          "description": "Folder where step definitions are located (e.g., 'steps'). Leave empty to scan the entire workspace."
         },
         "forge-runner.playwright.stepsFilePattern": {
           "type": "string",
-          "default": "**/*.steps.{js,ts}",
-          "description": "Glob pattern for step definition files."
+          "default": "",
+          "description": "Glob pattern for step definition files (e.g., '**/*.steps.{js,ts}'). Leave empty to scan all TypeScript files."
         },
         "forge-runner.playwright.tsconfigPath": {
           "type": "string",
