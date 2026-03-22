@@ -1,0 +1,32 @@
+# Dependency directories
+node_modules/
+
+# Build outputs
+out/
+dist/
+*.vsix
+
+# IDE / System
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+.vscode-test/
+.DS_Store
+Thumbs.db
+
+# Internal Documentation & Mockups (Approved exclusions)
+docs/*.png
+docs/architecture_audit.md
+docs/feature_gap_analysis.md
+docs/implementation_plan.md
+docs/mcp_bridge.md
+docs/progress_review.md
+docs/requirements.md
+docs/ui_walkthrough.md
+docs/v1_feature_evaluation.md
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

@@ -1,0 +1,177 @@
+{
+  "name": "forge-runner",
+  "displayName": "Forge Runner",
+  "description": "High-precision Gherkin & Playwright-BDD Test Runner with AI Self-Healing",
+  "version": "2.0.0-rc.9",
+  "publisher": "rohit",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rohit/playwright-bdd-runner"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Testing"
+  ],
+  "activationEvents": [
+    "onLanguage:gherkin",
+    "onFileSystem:**/playwright.config.{ts,js}",
+    "onView:forgeAiSidebar",
+    "onView:forgeUserStore",
+    "onCommand:forge-runner.showOnboarding"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "forge-runner.showOnboarding",
+        "title": "Forge: Open Setup Wizard",
+        "category": "Forge Runner",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "forge-runner.ai.chat",
+        "title": "Forge: Open AI Chat",
+        "category": "Forge Runner"
+      },
+      {
+        "command": "forge-runner.showReport",
+        "title": "Forge: Show Playwright HTML Report",
+        "category": "Forge Runner",
+        "icon": "$(graph-line)"
+      },
+      {
+        "command": "forge-runner.showTrace",
+        "title": "Forge: Open Playwright Trace Viewer",
+        "category": "Forge Runner",
+        "icon": "$(history)"
+      },
+      {
+        "command": "forge-runner.reconnectMcp",
+        "title": "Forge: Reconnect MCP Server",
+        "category": "Forge Runner",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "forge-runner.showReport",
+          "when": "resourceExtname == .feature",
+          "group": "navigation@1"
+        },
+        {
+          "command": "forge-runner.showTrace",
+          "when": "resourceExtname == .feature",
+          "group": "navigation@2"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "forge-runner.showOnboarding",
+          "when": "view == forgeAiSidebar || view == workbench.view.testing",
+          "group": "navigation@1"
+        },
+        {
+          "command": "forge-runner.showReport",
+          "when": "view == forgeAiSidebar || view == workbench.view.testing",
+          "group": "navigation@2"
+        },
+        {
+          "command": "forge-runner.showTrace",
+          "when": "view == forgeAiSidebar || view == workbench.view.testing",
+          "group": "navigation@3"
+        },
+        {
+          "command": "forge-runner.reconnectMcp",
+          "when": "view == forgeAiSidebar || view == workbench.view.testing",
+          "group": "navigation@4"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "forge-runner-explorer",
+          "title": "Forge AI",
+          "icon": "$(sparkle)"
+        }
+      ]
+    },
+    "views": {
+      "forge-runner-explorer": [
+        {
+          "type": "webview",
+          "id": "forgeAiSidebar",
+          "name": "Forge AI Assistant",
+          "icon": "$(sparkle)"
+        },
+        {
+          "type": "webview",
+          "id": "forgeUserStore",
+          "name": "Project Dashboard",
+          "icon": "$(dashboard)"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Forge Runner",
+      "properties": {
+        "forge-runner.ai.provider": {
+          "type": "string",
+          "default": "vscode-lm",
+          "enum": ["vscode-lm", "anthropic"],
+          "description": "LLM provider for BDD AI Assistant."
+        },
+        "forge-runner.ai.mcpServerPath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the specialized BDD MCP tool (index.js)."
+        },
+        "forge-runner.ai.anthropic.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API Key for Anthropic Claude (if using direct provider)."
+        },
+        "forge-runner.ai.preferredModelFamilies": {
+          "type": "string",
+          "default": "",
+          "description": "Comma-separated list of custom AI models to prioritize (e.g., 'gpt-6, claude-5')."
+        },
+        "forge-runner.testing.framework": {
+          "type": "string",
+          "default": "playwright-bdd",
+          "enum": ["playwright-bdd", "cucumber"],
+          "description": "The BDD framework to use when executing tests via the Test Explorer."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "18.x",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/parser": "^6.19.1",
+    "@typescript-eslint/eslint-plugin": "^6.19.1",
+    "@vscode/test-electron": "^2.3.9"
+  },
+  "dependencies": {
+    "typescript": "^5.3.3",
+    "@cucumber/gherkin": "^28.0.0",
+    "@cucumber/messages": "^24.1.0",
+    "@cucumber/cucumber-expressions": "^17.1.0",
+    "@modelcontextprotocol/sdk": "^1.2.0",
+    "inversify": "^6.0.2",
+    "reflect-metadata": "^0.2.2"
+  }
+}
+
