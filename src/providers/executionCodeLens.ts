@@ -96,10 +96,17 @@ export class ExecutionCodeLensProvider implements vscode.CodeLensProvider {
         }
 
         const escapedName = scenarioName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        try {
+            // Run bddgen first via execAsync (cross-platform, uses cmd.exe on Windows)
+            await execAsync('npx bddgen', { cwd });
+        } catch (err: any) {
+            vscode.window.showWarningMessage(`bddgen failed: ${err.message}. Running tests anyway...`);
+        }
+
         const terminal = vscode.window.createTerminal({ name: `BDD Run: ${scenarioName}`, cwd });
         terminal.show();
-        // Always run bddgen before playwright test
-        terminal.sendText(`npx bddgen && npx playwright test --config=${configPath} --grep "${escapedName}"`);
+        terminal.sendText(`npx playwright test --config=${configPath} --grep "${escapedName}"`);
     }
 
     public async debugScenario(scenarioName: string, uri: string) {
