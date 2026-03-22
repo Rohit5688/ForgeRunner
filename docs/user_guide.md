@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../resources/image.png" width="150" alt="Forge Runner Logo">
+</p>
+
 # 📖 Forge Runner: User Guide
 
 Welcome to the Forge Runner User Guide. This document breaks down the primary features of the extension and how you can interact with them on a day-to-day basis to speed up your BDD test development.

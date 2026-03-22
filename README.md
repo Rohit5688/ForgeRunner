@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="resources/image.png" width="200" alt="Forge Runner Logo">
+</p>
+
 # 🚀 Forge Runner For VS Code
 
 > The next generation of BDD testing tools for VS Code, built for scale, precision, and AI intelligence.

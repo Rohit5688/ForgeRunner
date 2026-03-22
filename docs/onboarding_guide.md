@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../resources/image.png" width="150" alt="Forge Runner Logo">
+</p>
+
 # 🚀 Forge Runner: Onboarding & Setup Guide
 
 Welcome! Setting up Forge Runner takes less than two minutes. This guide will help you connect your AI models and boot up your local MCP server.
