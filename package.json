@@ -146,6 +146,36 @@
           "default": "playwright-bdd",
           "enum": ["playwright-bdd", "cucumber"],
           "description": "The BDD framework to use when executing tests via the Test Explorer."
+        },
+        "forge-runner.playwright.configPath": {
+          "type": "string",
+          "default": "playwright.config.ts",
+          "description": "Path to the Playwright configuration file."
+        },
+        "forge-runner.playwright.featureFolder": {
+          "type": "string",
+          "default": "features",
+          "description": "Folder where .feature files are located."
+        },
+        "forge-runner.playwright.stepsFolder": {
+          "type": "string",
+          "default": "steps",
+          "description": "Folder where step definitions are located."
+        },
+        "forge-runner.playwright.stepsFilePattern": {
+          "type": "string",
+          "default": "**/*.steps.{js,ts}",
+          "description": "Glob pattern for step definition files."
+        },
+        "forge-runner.playwright.tsconfigPath": {
+          "type": "string",
+          "default": "tsconfig.json",
+          "description": "Path to the tsconfig.json file."
+        },
+        "forge-runner.playwright.projectRoot": {
+          "type": "string",
+          "default": "",
+          "description": "Relative path from workspace root to the project root (where playwright.config.ts and package.json are located). Leave empty if the project is at the workspace root."
         }
       }
     }

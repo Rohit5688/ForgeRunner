@@ -51,61 +51,6 @@ export class PlaywrightBddAdapter implements IBddAdapter {
         return args;
     }
 
-    public async debugTests(
-        request: vscode.TestRunRequest, 
-        token: vscode.CancellationToken, 
-        run: vscode.TestRun,
-        controller: vscode.TestController
-    ): Promise<void> {
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            run.appendOutput('No workspace folder found.\\r\\n');
-            return;
-        }
-
-        try {
-            run.appendOutput('Generating BDD files for Debug (npx bddgen)...\\r\\n');
-            await execAsync('npx bddgen', { cwd: workspaceFolder.uri.fsPath });
-
-            const args = this.getRunArgs(request, run);
-            run.appendOutput(`Starting Playwright Debugger with args: ${args.join(' ')}\\r\\n`);
-
-            const debugConfig: vscode.DebugConfiguration = {
-                type: 'node',
-                request: 'launch',
-                name: 'Debug Playwright BDD',
-                cwd: workspaceFolder.uri.fsPath,
-                runtimeExecutable: 'npx',
-                runtimeArgs: [
-                    'playwright',
-                    'test',
-                    ...args
-                ],
-                env: {
-                    PWDEBUG: 'console' // Triggers the Playwright Inspector and VS Code breakpoints
-                },
-                console: 'internalConsole',
-                internalConsoleOptions: 'neverOpen',
-                outputCapture: 'std'
-            };
-
-            await vscode.debug.startDebugging(workspaceFolder, debugConfig);
-            
-            // Wait for debugger to finish before ending the test run
-            const disposable = vscode.debug.onDidTerminateDebugSession((session) => {
-                if (session.name === debugConfig.name) {
-                    run.appendOutput('Debug session ended.\\r\\n');
-                    run.end();
-                    disposable.dispose();
-                }
-            });
-
-        } catch (error: any) {
-            run.appendOutput(`Failed to start debugger: ${error.message}\\r\\n`);
-            run.end();
-        }
-    }
-
     /**
      * Executes Playwright-BDD tests and reports results via the VS Code Test API.
      */
@@ -117,37 +62,119 @@ export class PlaywrightBddAdapter implements IBddAdapter {
     ): Promise<void> {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
-            run.appendOutput('No workspace folder found.\\r\\n');
+            run.appendOutput('No workspace folder found.\r\n');
             return;
         }
 
-        try {
-            run.appendOutput('Generating BDD files (npx bddgen)...\\r\\n');
-            await execAsync('npx bddgen', { cwd: workspaceFolder.uri.fsPath });
+        const config = vscode.workspace.getConfiguration('forge-runner.playwright');
+        const configPath = config.get<string>('configPath', 'playwright.config.ts');
+        const projectRootRelative = config.get<string>('projectRoot', '');
+        
+        const path = require('path');
+        const executionDir = projectRootRelative 
+            ? path.join(workspaceFolder.uri.fsPath, projectRootRelative) 
+            : workspaceFolder.uri.fsPath;
 
-            run.appendOutput('Running Playwright tests...\\r\\n');
+        try {
+            run.appendOutput(`Generating BDD files in ${executionDir} (npx bddgen)...\r\n`);
+            // Always run bddgen before tests
+            await execAsync('npx bddgen', { cwd: executionDir });
+
+            run.appendOutput('Running Playwright tests...\r\n');
             
             const args = this.getRunArgs(request, run);
             
-            const command = `npx playwright test --reporter=json ${args.join(' ')}`.trim();
+            // Build command with config path if provided
+            const command = `npx playwright test --config=${configPath} --reporter=json ${args.join(' ')}`.trim();
             
-            const { stdout, stderr } = await execAsync(command, { cwd: workspaceFolder.uri.fsPath });
+            run.appendOutput(`Executing: ${command}\r\n`);
+            const { stdout, stderr } = await execAsync(command, { cwd: executionDir });
             
             if (stderr) {
-                run.appendOutput(`Stderr during execution: ${stderr}\\r\\n`);
+                run.appendOutput(`Stderr during execution: ${stderr}\r\n`);
             }
             this.reportResults(stdout, request, run, controller);
 
         } catch (error: any) {
-            // Playwright returns exit code 1 on test failures, which throws an error from execAsync
             if (error.stdout) {
-                run.appendOutput('Playwright reported test failures.\\r\\n');
+                run.appendOutput('Playwright reported test failures.\r\n');
                 this.reportResults(error.stdout, request, run, controller);
             } else {
-                run.appendOutput(`Execution failed critically: ${error.message}\\r\\n`);
+                run.appendOutput(`Execution failed critically: ${error.message}\r\n`);
             }
         } finally {
-            run.appendOutput('Test run completed.\\r\\n');
+            run.appendOutput('Test run completed.\r\n');
+            run.end();
+        }
+    }
+
+    public async debugTests(
+        request: vscode.TestRunRequest, 
+        token: vscode.CancellationToken, 
+        run: vscode.TestRun,
+        controller: vscode.TestController
+    ): Promise<void> {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            run.appendOutput('No workspace folder found.\r\n');
+            return;
+        }
+
+        const config = vscode.workspace.getConfiguration('forge-runner.playwright');
+        const configPath = config.get<string>('configPath', 'playwright.config.ts');
+        const projectRootRelative = config.get<string>('projectRoot', '');
+        
+        const path = require('path');
+        const executionDir = projectRootRelative 
+            ? path.join(workspaceFolder.uri.fsPath, projectRootRelative) 
+            : workspaceFolder.uri.fsPath;
+
+        try {
+            run.appendOutput(`Generating BDD files for Debug in ${executionDir} (npx bddgen)...\r\n`);
+            await execAsync('npx bddgen', { cwd: executionDir });
+
+            const args = this.getRunArgs(request, run);
+            run.appendOutput(`Starting Playwright Debugger with args: ${args.join(' ')}\r\n`);
+
+            const debugConfig: vscode.DebugConfiguration = {
+                type: 'node',
+                request: 'launch',
+                name: 'Debug Playwright BDD',
+                cwd: executionDir,
+                runtimeExecutable: 'npx',
+                runtimeArgs: [
+                    'playwright',
+                    'test',
+                    `--config=${configPath}`,
+                    ...args
+                ],
+                env: {
+                    PWDEBUG: '1' // '1' is the standard for triggering Playwright Inspector and breakpoints
+                },
+                console: 'internalConsole',
+                internalConsoleOptions: 'neverOpen',
+                outputCapture: 'std',
+                // Important for debugger attachment
+                skipFiles: [
+                    '<node_internals>/**'
+                ]
+            };
+
+            const started = await vscode.debug.startDebugging(workspaceFolder, debugConfig);
+            if (!started) {
+                throw new Error('Failed to start debug session.');
+            }
+            
+            const disposable = vscode.debug.onDidTerminateDebugSession((session) => {
+                if (session.name === debugConfig.name) {
+                    run.appendOutput('Debug session ended.\r\n');
+                    run.end();
+                    disposable.dispose();
+                }
+            });
+
+        } catch (error: any) {
+            run.appendOutput(`Failed to start debugger: ${error.message}\r\n`);
             run.end();
         }
     }
