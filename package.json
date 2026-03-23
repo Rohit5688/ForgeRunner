@@ -30,7 +30,11 @@
         "id": "feature",
         "aliases": ["Gherkin", "Feature"],
         "extensions": [".feature"],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./resources/image.png",
+          "dark": "./resources/image.png"
+        }
       }
     ],
     "grammars": [
