@@ -14,6 +14,7 @@ import { FormattingProvider } from './providers/formattingProvider.js';
 import { StepGenerationCodeLensProvider } from './providers/stepGenerationCodeLens.js';
 import { AutoHealCodeLensProvider } from './providers/autoHealCodeLens.js';
 import { ExecutionCodeLensProvider } from './providers/executionCodeLens.js';
+import { AutoDiscoveryService } from './core/autoDiscovery.js';
 
 /**
  * Forge Runner v2 Activation
@@ -36,6 +37,7 @@ export async function activate(context: vscode.ExtensionContext) {
     let mcpBridge: McpBridgeService | undefined;
     let onboarding: OnboardingService | undefined;
     let userStoreProvider: UserStoreProvider | undefined;
+    let autoDiscoveryService: AutoDiscoveryService | undefined;
 
     try { navProvider         = container.get<BddNavigationProvider>(TYPES.NavigationProvider); }
     catch (e: any) { logger.appendLine(`[DI ERROR] NavigationProvider: ${e.message}`); }
@@ -57,6 +59,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
     try { aiSidebar           = container.get<AiSidebarProvider>(TYPES.AiSidebar); }
     catch (e: any) { logger.appendLine(`[DI ERROR] AiSidebarProvider: ${e.message}`); }
+
+    try {
+        autoDiscoveryService = container.get<AutoDiscoveryService>(TYPES.AutoDiscoveryService);
+        // Fire and forget auto-discovery on startup
+        autoDiscoveryService.run().catch(e => logger.appendLine(`[AutoDiscovery] Error: ${e}`));
+    }
+    catch (e: any) { logger.appendLine(`[DI ERROR] AutoDiscoveryService: ${e.message}`); }
 
     try { testController      = container.get<BddTestController>(TYPES.TestController); }
     catch (e: any) { logger.appendLine(`[DI ERROR] TestController: ${e.message}`); }

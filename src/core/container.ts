@@ -24,6 +24,7 @@ import { StepGenerationCodeLensProvider } from '../providers/stepGenerationCodeL
 import { TestStateStore } from './testStateStore.js';
 import { AutoHealCodeLensProvider } from '../providers/autoHealCodeLens.js';
 import { ExecutionCodeLensProvider } from '../providers/executionCodeLens.js';
+import { AutoDiscoveryService } from './autoDiscovery.js';
 import { TYPES } from './types.js';
 
 export { TYPES };
@@ -55,5 +56,6 @@ container.bind<StepGenerationCodeLensProvider>(TYPES.StepGenerationCodeLensProvi
 container.bind<TestStateStore>(TYPES.TestStateStore).to(TestStateStore).inSingletonScope();
 container.bind<AutoHealCodeLensProvider>(TYPES.AutoHealCodeLensProvider).to(AutoHealCodeLensProvider).inSingletonScope();
 container.bind<ExecutionCodeLensProvider>(TYPES.ExecutionCodeLensProvider).to(ExecutionCodeLensProvider).inSingletonScope();
+container.bind<AutoDiscoveryService>(TYPES.AutoDiscoveryService).to(AutoDiscoveryService).inSingletonScope();
 
 export { container };
