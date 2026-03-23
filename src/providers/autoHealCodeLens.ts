@@ -40,8 +40,7 @@ export class AutoHealCodeLensProvider implements vscode.CodeLensProvider {
                     const isLocatorIssue = this.LOCATOR_ERROR_HEURISTICS.some(h => errorMsg.toLowerCase().includes(h));
                     
                     if (isLocatorIssue) {
-                        const targetLine = scenario.outlineLine ?? scenario.line;
-                        const line = Math.max(0, targetLine - 1);
+                        const line = Math.max(0, scenario.line - 1);
                         
                         // Prevent stacking multiple Auto-Heal buttons on Scenario Outlines 
                         if (seenLines.has(line)) {

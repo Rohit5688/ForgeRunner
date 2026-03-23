@@ -22,15 +22,10 @@ export class PlaywrightBddAdapter implements IBddAdapter {
         const args: string[] = [];
         if (request.include && request.include.length > 0) {
             const greps = new Set<string>();
-            const paths = new Set<string>();
             
             for (const item of request.include) {
-                // If the item has children, it's a Feature. 
-                // If it's a single test, we can use Playwright's native exact line runner relative to the active project dir.
-                if (item.children.size === 0 && item.uri && item.range) {
-                    const relativePath = path.relative(executionDir, item.uri.fsPath).replace(/\\/g, '/');
-                    paths.add(`"${relativePath}:${item.range.start.line + 1}"`);
-                } else if (item.tags && item.tags.length > 0) {
+                if (item.tags && item.tags.length > 0) {
+                    // Preference to Tags natively
                     greps.add(item.tags.map(t => t.id).join('|'));
                 } else {
                     greps.add(item.label);
@@ -49,9 +44,6 @@ export class PlaywrightBddAdapter implements IBddAdapter {
                     args.push(`"${escapedGreps.join('|')}"`);
                 }
             }
-
-            // Push precise positional file:line path targets
-            Array.from(paths).forEach(p => args.push(p));
         }
         return args;
     }
