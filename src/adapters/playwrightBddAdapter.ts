@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as os from 'os';
+import * as fs from 'fs';
 import { injectable, inject } from 'inversify';
 import { TYPES } from '../core/types.js';
 import { IBddAdapter } from './adapter.js';
@@ -8,7 +10,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
-const MAX_BUFFER = 10 * 1024 * 1024; // 10MB — prevents truncated JSON
+const MAX_BUFFER = 10 * 1024 * 1024;
 
 @injectable()
 export class PlaywrightBddAdapter implements IBddAdapter {
@@ -115,23 +117,82 @@ export class PlaywrightBddAdapter implements IBddAdapter {
             run.appendOutput('Running Playwright tests...\r\n');
             
             const args = this.getRunArgs(request, run);
-            const command = `npx playwright test --config=${configPath} --reporter=json ${args.join(' ')}`.trim();
+            
+            // Write JSON results to a temp file so we don't need to pass --reporter=json
+            // This preserves the user's configured reporters (HTML, headed mode, etc.)
+            const jsonOutputFile = path.join(os.tmpdir(), `forge-results-${Date.now()}.json`);
+            
+            // Don't pass --reporter on CLI — let the user's playwright.config.ts handle it
+            const command = `npx playwright test --config=${configPath} ${args.join(' ')}`.trim();
             
             run.appendOutput(`Executing: ${command}\r\n`);
-            const { stdout, stderr } = await execAsync(command, { cwd: executionDir, maxBuffer: MAX_BUFFER });
             
-            if (stderr) {
-                run.appendOutput(`Stderr: ${stderr}\r\n`);
+            let exitCode = 0;
+            let stdout = '';
+            let stderr = '';
+            
+            try {
+                const result = await execAsync(command, {
+                    cwd: executionDir,
+                    maxBuffer: MAX_BUFFER,
+                    env: {
+                        ...process.env,
+                        // Tell Playwright's JSON reporter (if configured) to write to our temp file
+                        PLAYWRIGHT_JSON_OUTPUT_NAME: jsonOutputFile
+                    }
+                });
+                stdout = result.stdout;
+                stderr = result.stderr;
+            } catch (execError: any) {
+                exitCode = execError.code || 1;
+                stdout = execError.stdout || '';
+                stderr = execError.stderr || '';
+                run.appendOutput(`Test run exited with code ${exitCode}.\r\n`);
+                if (stderr) {
+                    run.appendOutput(`Error output:\r\n${stderr}\r\n`);
+                }
+                if (stdout) {
+                    run.appendOutput(`Test output:\r\n${stdout}\r\n`);
+                }
             }
-            this.reportResults(stdout, run, controller, reportedItemIds);
+            
+            // Try to parse results from the JSON temp file first
+            let jsonParsed = false;
+            try {
+                if (fs.existsSync(jsonOutputFile)) {
+                    const jsonContent = fs.readFileSync(jsonOutputFile, 'utf8');
+                    this.reportResultsFromJson(jsonContent, run, controller, reportedItemIds);
+                    jsonParsed = true;
+                    fs.unlinkSync(jsonOutputFile); // Clean up
+                }
+            } catch (parseErr: any) {
+                run.appendOutput(`Could not parse JSON results file: ${parseErr.message}\r\n`);
+            }
+            
+            // Fallback: if no JSON file was available, mark based on exit code
+            if (!jsonParsed) {
+                if (exitCode === 0) {
+                    for (const item of includedItems) {
+                        if (!reportedItemIds.has(item.id)) {
+                            reportedItemIds.add(item.id);
+                            this.testStateStore.recordSuccess(item.id);
+                            run.passed(item);
+                        }
+                    }
+                } else {
+                    const errorDetail = stderr || stdout || 'Tests failed — check terminal output for details.';
+                    for (const item of includedItems) {
+                        if (!reportedItemIds.has(item.id)) {
+                            reportedItemIds.add(item.id);
+                            this.testStateStore.recordFailure(item.id, errorDetail);
+                            run.failed(item, new vscode.TestMessage(errorDetail));
+                        }
+                    }
+                }
+            }
 
         } catch (error: any) {
-            if (error.stdout) {
-                run.appendOutput('Playwright reported test failures.\r\n');
-                this.reportResults(error.stdout, run, controller, reportedItemIds);
-            } else {
-                run.appendOutput(`Execution failed critically: ${error.message}\r\n`);
-            }
+            run.appendOutput(`Execution failed critically: ${error.message}\r\n`);
         } finally {
             // Mark any included items that didn't get a result as "errored"
             for (const item of includedItems) {
@@ -219,19 +280,18 @@ export class PlaywrightBddAdapter implements IBddAdapter {
         }
     }
 
-    private reportResults(stdout: string, run: vscode.TestRun, controller: vscode.TestController, reportedItemIds: Set<string>) {
+    private reportResultsFromJson(jsonString: string, run: vscode.TestRun, controller: vscode.TestController, reportedItemIds: Set<string>) {
         try {
-            // Sometimes stdout has non-json prefix logs from 'playwright test'
-            const jsonStartOffset = stdout.indexOf('{');
-            const jsonString = jsonStartOffset > -1 ? stdout.substring(jsonStartOffset) : stdout;
-            const results = JSON.parse(jsonString);
+            // Sometimes JSON has non-json prefix logs
+            const jsonStartOffset = jsonString.indexOf('{');
+            const cleanJson = jsonStartOffset > -1 ? jsonString.substring(jsonStartOffset) : jsonString;
+            const results = JSON.parse(cleanJson);
             
             for (const suite of results.suites || []) {
                 this.processSuite(suite, run, controller, null, reportedItemIds);
             }
         } catch (e: any) {
             run.appendOutput(`Failed to parse test results JSON: ${e.message}\r\n`);
-            run.appendOutput(`Raw output (first 500 chars): ${stdout.substring(0, 500)}\r\n`);
         }
     }
 
