@@ -1,17 +1,31 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { injectable, inject } from 'inversify';
 import { TYPES } from '../core/types.js';
 import { GherkinParser } from '../parsers/gherkinParser.js';
-import { BddTestController } from '../ui/testController.js';
 
 @injectable()
 export class ExecutionCodeLensProvider implements vscode.CodeLensProvider {
 
     constructor(
         @inject(TYPES.GherkinParser) private gherkinParser: GherkinParser,
-        @inject(TYPES.TestController) private testController: BddTestController,
         @inject(TYPES.Logger) private logger: vscode.OutputChannel
     ) {}
+
+    /**
+     * Resolves the effective execution directory and config from workspace + projectRoot config.
+     */
+    private getExecutionContext(): { cwd: string; configPath: string } {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        const config = vscode.workspace.getConfiguration('forge-runner.playwright');
+        const configPath = config.get<string>('configPath', 'playwright.config.ts');
+        const projectRoot = config.get<string>('projectRoot', '');
+
+        const basePath = workspaceFolder?.uri.fsPath || '';
+        const cwd = projectRoot ? path.join(basePath, projectRoot) : basePath;
+
+        return { cwd, configPath };
+    }
 
     public async provideCodeLenses(
         document: vscode.TextDocument, 
@@ -69,16 +83,71 @@ export class ExecutionCodeLensProvider implements vscode.CodeLensProvider {
     }
 
     /**
-     * Run a scenario — delegates to the TestController so Testing View + Test Results stay in sync.
+     * Run a scenario via terminal — same pattern as the reference working extension.
+     * Uses terminal.sendText() so user sees output, headed mode works, and user reporters work.
+     * bddgen and playwright test are sent as SEPARATE commands (avoids PowerShell && issue).
      */
     public async runScenario(scenarioName: string, uri: string) {
-        await this.testController.runByScenarioName(scenarioName, uri);
+        const { cwd, configPath } = this.getExecutionContext();
+
+        if (!cwd) {
+            vscode.window.showErrorMessage('No workspace folder found.');
+            return;
+        }
+
+        const escapedName = scenarioName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const terminal = vscode.window.createTerminal({ name: `BDD Run: ${scenarioName}`, cwd });
+        terminal.show();
+        // Send bddgen and test as separate commands (PowerShell safe)
+        terminal.sendText('npx bddgen');
+        terminal.sendText(`npx playwright test --config=${configPath} --grep "${escapedName}"`);
     }
 
     /**
-     * Debug a scenario — delegates to the TestController.
+     * Debug a scenario — launches VS Code debugger with Playwright.
      */
     public async debugScenario(scenarioName: string, uri: string) {
-        await this.testController.debugByScenarioName(scenarioName, uri);
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            vscode.window.showErrorMessage('No workspace folder found to launch debug session.');
+            return;
+        }
+
+        const { cwd, configPath } = this.getExecutionContext();
+        const escapedName = scenarioName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        // Run bddgen in a terminal first (visible to user)
+        const terminal = vscode.window.createTerminal({ name: `BDD Prep: bddgen`, cwd });
+        terminal.show();
+        terminal.sendText('npx bddgen');
+
+        // Wait a moment for bddgen to complete, then launch debugger
+        setTimeout(async () => {
+            const debugConfig: vscode.DebugConfiguration = {
+                type: 'node',
+                request: 'launch',
+                name: 'Debug Playwright BDD',
+                cwd,
+                runtimeExecutable: 'npx',
+                runtimeArgs: [
+                    'playwright',
+                    'test',
+                    `--config=${configPath}`,
+                    '--grep',
+                    escapedName
+                ],
+                env: { PWDEBUG: '1' },
+                console: 'integratedTerminal',
+                internalConsoleOptions: 'neverOpen',
+                skipFiles: [
+                    '<node_internals>/**'
+                ]
+            };
+
+            const started = await vscode.debug.startDebugging(workspaceFolder, debugConfig);
+            if (!started) {
+                vscode.window.showErrorMessage('Failed to start debug session.');
+            }
+        }, 3000);
     }
 }
