@@ -32,8 +32,8 @@
         "extensions": [".feature"],
         "configuration": "./language-configuration.json",
         "icon": {
-          "light": "./resources/image.png",
-          "dark": "./resources/image.png"
+          "light": "./resources/icon.svg",
+          "dark": "./resources/icon.svg"
         }
       }
     ],
