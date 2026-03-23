@@ -24,9 +24,9 @@ export class PlaywrightBddAdapter implements IBddAdapter {
             const greps = new Set<string>();
             
             for (const item of request.include) {
-                if (item.children.size > 0) {
-                    // Feature-level: run all scenarios — no grep filter needed for this feature
-                    // Playwright will run all tests matching the generated spec files
+                if (item.tags && item.tags.length > 0) {
+                    // Preference to Tags natively
+                    greps.add(item.tags.map(t => t.id).join('|'));
                 } else {
                     greps.add(item.label);
                 }
@@ -303,9 +303,13 @@ export class PlaywrightBddAdapter implements IBddAdapter {
 
             // Fallback: match by file path if the suite has a file property
             if (!currentFeatureItem && suite.file) {
+                const cleanSuiteFile = path.basename(suite.file).replace('.spec.js', '').replace('.spec.ts', '');
                 controller.items.forEach(item => {
-                    if (item.uri && item.uri.fsPath.endsWith(suite.file)) {
-                        currentFeatureItem = item;
+                    if (item.uri) {
+                        const cleanItemFile = path.basename(item.uri.fsPath);
+                        if (cleanItemFile === cleanSuiteFile) {
+                            currentFeatureItem = item;
+                        }
                     }
                 });
             }
