@@ -70,6 +70,84 @@ export class BddTestController {
         return this.controller;
     }
 
+    // ── Public API for CodeLens / external callers ───────────────────────
+
+    /**
+     * Run a single scenario by name from any entry point (CodeLens, command palette, etc.).
+     * Routes through the TestController pipeline so Testing View + Test Results stay in sync.
+     */
+    public async runByScenarioName(scenarioName: string, fileUri: string): Promise<void> {
+        const testItem = await this.ensureAndFindTestItem(scenarioName, fileUri);
+        if (!testItem) {
+            vscode.window.showWarningMessage(`Could not find scenario "${scenarioName}" in the test tree. Running via terminal fallback.`);
+            return;
+        }
+
+        const request = new vscode.TestRunRequest([testItem]);
+        const token = new vscode.CancellationTokenSource().token;
+        await this.executionService.run(request, token, this.controller);
+    }
+
+    /**
+     * Debug a single scenario by name from any entry point.
+     * Routes through the TestController pipeline.
+     */
+    public async debugByScenarioName(scenarioName: string, fileUri: string): Promise<void> {
+        const testItem = await this.ensureAndFindTestItem(scenarioName, fileUri);
+        if (!testItem) {
+            vscode.window.showWarningMessage(`Could not find scenario "${scenarioName}" in the test tree. Cannot start debug.`);
+            return;
+        }
+
+        const request = new vscode.TestRunRequest([testItem]);
+        const token = new vscode.CancellationTokenSource().token;
+        await this.executionService.debug(request, token, this.controller);
+    }
+
+    // ── Private helpers ──────────────────────────────────────────────────
+
+    /**
+     * Ensures the file is parsed/discovered, then searches for the test item.
+     */
+    private async ensureAndFindTestItem(scenarioName: string, fileUri: string): Promise<vscode.TestItem | undefined> {
+        const uri = vscode.Uri.file(fileUri);
+
+        // Ensure the feature file is parsed and its scenarios are in the tree
+        if (!this.controller.items.get(uri.fsPath)) {
+            await this.refreshFile(uri);
+        }
+
+        return this.findTestItem(scenarioName, uri.fsPath);
+    }
+
+    /**
+     * Find a TestItem by scenario name under a specific feature file.
+     */
+    private findTestItem(scenarioName: string, filePath: string): vscode.TestItem | undefined {
+        const featureItem = this.controller.items.get(filePath);
+        if (!featureItem) {
+            return undefined;
+        }
+
+        let found: vscode.TestItem | undefined;
+        featureItem.children.forEach(child => {
+            if (!found && child.label === scenarioName) {
+                found = child;
+            }
+        });
+
+        // Fallback: partial match (for scenario outlines that may have additional text)
+        if (!found) {
+            featureItem.children.forEach(child => {
+                if (!found && (child.label.includes(scenarioName) || scenarioName.includes(child.label))) {
+                    found = child;
+                }
+            });
+        }
+
+        return found;
+    }
+
     private async discoverAllTests() {
         this.logger.appendLine('[Discovery] Starting full workspace scan...');
         try {

@@ -1,36 +1,17 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { injectable, inject } from 'inversify';
 import { TYPES } from '../core/types.js';
 import { GherkinParser } from '../parsers/gherkinParser.js';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
+import { BddTestController } from '../ui/testController.js';
 
 @injectable()
 export class ExecutionCodeLensProvider implements vscode.CodeLensProvider {
 
     constructor(
         @inject(TYPES.GherkinParser) private gherkinParser: GherkinParser,
+        @inject(TYPES.TestController) private testController: BddTestController,
         @inject(TYPES.Logger) private logger: vscode.OutputChannel
     ) {}
-
-    /**
-     * Resolves the effective execution directory from workspace + projectRoot config.
-     */
-    private getExecutionContext(): { cwd: string; configPath: string; tsconfigPath: string } {
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        const config = vscode.workspace.getConfiguration('forge-runner.playwright');
-        const configPath = config.get<string>('configPath', 'playwright.config.ts');
-        const tsconfigPath = config.get<string>('tsconfigPath', 'tsconfig.json');
-        const projectRoot = config.get<string>('projectRoot', '');
-
-        const basePath = workspaceFolder?.uri.fsPath || '';
-        const cwd = projectRoot ? path.join(basePath, projectRoot) : basePath;
-
-        return { cwd, configPath, tsconfigPath };
-    }
 
     public async provideCodeLenses(
         document: vscode.TextDocument, 
@@ -87,70 +68,17 @@ export class ExecutionCodeLensProvider implements vscode.CodeLensProvider {
         });
     }
 
+    /**
+     * Run a scenario — delegates to the TestController so Testing View + Test Results stay in sync.
+     */
     public async runScenario(scenarioName: string, uri: string) {
-        const { cwd, configPath } = this.getExecutionContext();
-
-        if (!cwd) {
-            vscode.window.showErrorMessage('No workspace folder found.');
-            return;
-        }
-
-        const escapedName = scenarioName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-        try {
-            // Run bddgen first via execAsync (cross-platform, uses cmd.exe on Windows)
-            await execAsync('npx bddgen', { cwd });
-        } catch (err: any) {
-            vscode.window.showWarningMessage(`bddgen failed: ${err.message}. Running tests anyway...`);
-        }
-
-        const terminal = vscode.window.createTerminal({ name: `BDD Run: ${scenarioName}`, cwd });
-        terminal.show();
-        terminal.sendText(`npx playwright test --config=${configPath} --grep "${escapedName}"`);
+        await this.testController.runByScenarioName(scenarioName, uri);
     }
 
+    /**
+     * Debug a scenario — delegates to the TestController.
+     */
     public async debugScenario(scenarioName: string, uri: string) {
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            vscode.window.showErrorMessage('No workspace folder found to launch debug session.');
-            return;
-        }
-
-        const { cwd, configPath } = this.getExecutionContext();
-        const escapedName = scenarioName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-        try {
-            // Always run bddgen before debug
-            await execAsync('npx bddgen', { cwd });
-
-            const debugConfig: vscode.DebugConfiguration = {
-                type: 'node',
-                request: 'launch',
-                name: 'Debug Playwright BDD',
-                cwd,
-                runtimeExecutable: 'npx',
-                runtimeArgs: [
-                    'playwright',
-                    'test',
-                    `--config=${configPath}`,
-                    '--grep',
-                    `"${escapedName}"`
-                ],
-                env: { PWDEBUG: '1' },
-                console: 'internalConsole',
-                internalConsoleOptions: 'neverOpen',
-                outputCapture: 'std',
-                skipFiles: [
-                    '<node_internals>/**'
-                ]
-            };
-
-            const started = await vscode.debug.startDebugging(workspaceFolder, debugConfig);
-            if (!started) {
-                vscode.window.showErrorMessage('Failed to start debug session.');
-            }
-        } catch (error: any) {
-            vscode.window.showErrorMessage(`Debug failed: ${error.message}`);
-        }
+        await this.testController.debugByScenarioName(scenarioName, uri);
     }
 }
