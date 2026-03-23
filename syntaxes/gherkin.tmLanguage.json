@@ -1,0 +1,110 @@
+{
+  "name": "Feature",
+  "scopeName": "text.gherkin.feature",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#tags"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#steps"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#tables"
+    },
+    {
+      "include": "#placeholders"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "match": "(?<=^|\\s)(#.*)$",
+          "name": "comment.line.number-sign.gherkin"
+        }
+      ]
+    },
+    "tags": {
+      "patterns": [
+        {
+          "match": "@[^\\s]+",
+          "name": "entity.name.tag.gherkin"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "match": "^\\s*(Feature|Rule|Background|Scenario Outline|Scenario Template|Scenario|Example|Examples|Scenarios):",
+          "name": "keyword.language.gherkin"
+        }
+      ]
+    },
+    "steps": {
+      "patterns": [
+        {
+          "match": "^\\s*(Given|When|Then|And|But|\\*)\\s",
+          "captures": {
+            "1": {
+              "name": "keyword.control.gherkin"
+            }
+          }
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "begin": "\"\"\"",
+          "end": "\"\"\"",
+          "name": "string.quoted.double.gherkin"
+        },
+        {
+          "begin": "\"",
+          "end": "\"",
+          "name": "string.quoted.double.gherkin",
+          "patterns": [
+            {
+              "include": "#placeholders"
+            }
+          ]
+        },
+        {
+          "begin": "'",
+          "end": "'",
+          "name": "string.quoted.single.gherkin",
+          "patterns": [
+            {
+              "include": "#placeholders"
+            }
+          ]
+        }
+      ]
+    },
+    "tables": {
+      "patterns": [
+        {
+          "match": "\\|",
+          "name": "keyword.operator.gherkin"
+        }
+      ]
+    },
+    "placeholders": {
+      "patterns": [
+        {
+          "match": "<[^>]+>",
+          "name": "variable.other.gherkin"
+        }
+      ]
+    }
+  }
+}

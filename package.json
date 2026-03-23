@@ -25,6 +25,21 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "languages": [
+      {
+        "id": "feature",
+        "aliases": ["Gherkin", "Feature"],
+        "extensions": [".feature"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "feature",
+        "scopeName": "text.gherkin.feature",
+        "path": "./syntaxes/gherkin.tmLanguage.json"
+      }
+    ],
     "commands": [
       {
         "command": "forge-runner.showOnboarding",
