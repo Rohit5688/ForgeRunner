@@ -30,6 +30,8 @@ export class AutoHealCodeLensProvider implements vscode.CodeLensProvider {
         try {
             const feature = await this.gherkinParser.parse(document.uri.fsPath, document.getText());
 
+            const seenLines = new Set<number>();
+
             for (const scenario of feature.scenarios) {
                 // Check if this scenario recently failed
                 const errorMsg = this.testStateStore.getFailure(scenario.id);
@@ -39,6 +41,13 @@ export class AutoHealCodeLensProvider implements vscode.CodeLensProvider {
                     
                     if (isLocatorIssue) {
                         const line = Math.max(0, scenario.line - 1);
+                        
+                        // Prevent stacking multiple Auto-Heal buttons on Scenario Outlines 
+                        if (seenLines.has(line)) {
+                            continue;
+                        }
+                        seenLines.add(line);
+
                         const range = new vscode.Range(line, 0, line, 0);
 
                         const lens = new vscode.CodeLens(range, {

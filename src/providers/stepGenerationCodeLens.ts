@@ -39,6 +39,8 @@ export class StepGenerationCodeLensProvider implements vscode.CodeLensProvider {
         try {
             const feature = await this.gherkinParser.parse(document.uri.fsPath, document.getText());
 
+            const seenLines = new Set<number>();
+
             for (const scenario of feature.scenarios) {
                 for (const step of scenario.steps) {
                     
@@ -46,6 +48,12 @@ export class StepGenerationCodeLensProvider implements vscode.CodeLensProvider {
                     
                     if (!isMatched) {
                         const line = Math.max(0, step.line - 1);
+                        
+                        if (seenLines.has(line)) {
+                            continue;
+                        }
+                        seenLines.add(line);
+
                         const range = new vscode.Range(line, 0, line, 0);
 
                         const lens = new vscode.CodeLens(range, {

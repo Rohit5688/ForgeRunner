@@ -36,8 +36,16 @@ export class ExecutionCodeLensProvider implements vscode.CodeLensProvider {
         try {
             const feature = await this.gherkinParser.parse(document.uri.fsPath, document.getText());
 
+            const seenLines = new Set<number>();
+
             for (const scenario of feature.scenarios) {
                 const line = Math.max(0, scenario.line - 1);
+                
+                if (seenLines.has(line)) {
+                    continue;
+                }
+                seenLines.add(line);
+
                 const range = new vscode.Range(line, 0, line, 0);
 
                 const runLens = new vscode.CodeLens(range, {
