@@ -27,6 +27,7 @@ export interface GherkinScenario {
     name: string;
     steps: GherkinStep[];
     line: number;
+    outlineLine?: number;
     tags: string[];
 }
 
@@ -68,10 +69,26 @@ export class GherkinParser {
         const scenarioAst = feature.children
             .find(child => child.scenario?.id === pickle.astNodeIds[0])?.scenario;
 
+        let line = scenarioAst?.location.line || 0;
+        let outlineLine: number | undefined;
+
+        if (scenarioAst && pickle.astNodeIds.length > 1) {
+            const rowId = pickle.astNodeIds[1];
+            for (const example of scenarioAst.examples || []) {
+                const row = example.tableBody?.find(r => r.id === rowId);
+                if (row) {
+                    outlineLine = scenarioAst.location.line;
+                    line = row.location.line;
+                    break;
+                }
+            }
+        }
+
         return {
             id: pickle.id,
             name: pickle.name,
-            line: scenarioAst?.location.line || 0,
+            line,
+            outlineLine,
             tags: pickle.tags.map(t => t.name),
             steps: pickle.steps.map(step => ({
                 keyword: this.findStepKeyword(step.astNodeIds[0], scenarioAst),

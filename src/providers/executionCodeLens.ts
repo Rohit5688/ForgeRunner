@@ -39,7 +39,9 @@ export class ExecutionCodeLensProvider implements vscode.CodeLensProvider {
             const seenLines = new Set<number>();
 
             for (const scenario of feature.scenarios) {
-                const line = Math.max(0, scenario.line - 1);
+                // Pin the CodeLens to the top Definition line to prevent breaking visually inside Examples tables
+                const targetLine = scenario.outlineLine ?? scenario.line;
+                const line = Math.max(0, targetLine - 1);
                 
                 if (seenLines.has(line)) {
                     continue;
