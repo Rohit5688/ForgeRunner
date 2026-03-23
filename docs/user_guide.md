@@ -70,3 +70,48 @@ Forge Runner defaults to the `playwright-bdd` framework. If you are instead runn
 2. Search for `forge-runner.testing.framework`.
 3. Change the dropdown from `playwright-bdd` to `cucumber`. 
 4. The Test Explorer will now seamlessly proxy runs to `npx cucumber-js`.
+
+---
+
+## 7. Configuration Reference & Examples ⚙️
+
+Forge Runner allows you to customize where it looks for files and how it executes tests. This is especially useful for complex or monorepo project structures.
+
+To configure these, open your VS Code `settings.json` (Workspace or User) and add the following keys under `forge-runner.playwright`:
+
+### Available Configuration Options
+
+| Setting Key | Description | Default |
+| :--- | :--- | :--- |
+| `projectRoot` | The relative path from your VS Code Workspace root to the actual test project directory. | `""` |
+| `configPath` | The name or relative path of the Playwright config file. | `"playwright.config.ts"` |
+| `featureFolder` | The directory where your `.feature` files live, relative to `projectRoot`. | `""` (Searches everywhere) |
+| `stepsFolder` | The directory where your step definitions live, relative to `projectRoot`. | `""` (Searches everywhere) |
+| `stepsFilePattern` | A glob pattern to identify step definition files. | `""` (Defaults to `**/*.{ts,js,mjs,mts}`) |
+| `tsconfigPath` | Path to your `tsconfig.json` for compilation before running test commands. | `""` |
+
+### Example 1: Standard Project Structure
+If you open VS Code directly in your testing project, you usually don't need much configuration. But to optimize performance by telling Forge Runner exactly where to look:
+
+```json
+{
+    "forge-runner.playwright.featureFolder": "tests/features",
+    "forge-runner.playwright.stepsFolder": "tests/steps",
+    "forge-runner.playwright.stepsFilePattern": "*.{ts,js}"
+}
+```
+*Note: This tells Forge Runner to look for scenarios inside `tests/features/**/*.feature` and steps inside `tests/steps/**/*.{ts,js}`.*
+
+### Example 2: Monorepo or Nested Project
+If your VS Code workspace is at the root of a large repository, but your UI automation lives in a sub-folder (e.g., `apps/e2e-tests`), you **must** use `projectRoot`.
+
+```json
+{
+    "forge-runner.playwright.projectRoot": "apps/e2e-tests",
+    "forge-runner.playwright.configPath": "playwright.config.ts",
+    "forge-runner.playwright.featureFolder": "src/features",
+    "forge-runner.playwright.stepsFolder": "src/step-definitions",
+    "forge-runner.playwright.stepsFilePattern": "*.steps.ts"
+}
+```
+*How it works: Forge Runner will navigate to `[Workspace_Root]/apps/e2e-tests` before running `npx bddgen` and `npx playwright test`. It will only scan `apps/e2e-tests/src/features/` for feature files.*
