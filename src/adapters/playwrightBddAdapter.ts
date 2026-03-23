@@ -18,7 +18,7 @@ export class PlaywrightBddAdapter implements IBddAdapter {
         @inject(TYPES.TestStateStore) private testStateStore: TestStateStore
     ) {}
 
-    private getRunArgs(request: vscode.TestRunRequest, run: vscode.TestRun): string[] {
+    private getRunArgs(request: vscode.TestRunRequest, run: vscode.TestRun, executionDir: string): string[] {
         const args: string[] = [];
         if (request.include && request.include.length > 0) {
             const greps = new Set<string>();
@@ -26,9 +26,9 @@ export class PlaywrightBddAdapter implements IBddAdapter {
             
             for (const item of request.include) {
                 // If the item has children, it's a Feature. 
-                // If it's a single test, we can use Playwright's native exact line runner.
+                // If it's a single test, we can use Playwright's native exact line runner relative to the active project dir.
                 if (item.children.size === 0 && item.uri && item.range) {
-                    const relativePath = vscode.workspace.asRelativePath(item.uri);
+                    const relativePath = path.relative(executionDir, item.uri.fsPath).replace(/\\/g, '/');
                     paths.add(`"${relativePath}:${item.range.start.line + 1}"`);
                 } else if (item.tags && item.tags.length > 0) {
                     greps.add(item.tags.map(t => t.id).join('|'));
@@ -117,7 +117,7 @@ export class PlaywrightBddAdapter implements IBddAdapter {
 
             run.appendOutput('Running Playwright tests...\r\n');
             
-            const args = this.getRunArgs(request, run);
+            const args = this.getRunArgs(request, run, executionDir);
             
             // Write JSON results to a temp file so we don't need to pass --reporter=json
             // This preserves the user's configured reporters (HTML, headed mode, etc.)
@@ -236,7 +236,7 @@ export class PlaywrightBddAdapter implements IBddAdapter {
             run.appendOutput(`Generating BDD files for Debug in ${executionDir} (npx bddgen)...\r\n`);
             await execAsync('npx bddgen', { cwd: executionDir, maxBuffer: MAX_BUFFER });
 
-            const args = this.getRunArgs(request, run);
+            const args = this.getRunArgs(request, run, executionDir);
             run.appendOutput(`Starting Playwright Debugger with args: ${args.join(' ')}\r\n`);
 
             const debugConfig: vscode.DebugConfiguration = {
