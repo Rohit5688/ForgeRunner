@@ -3,11 +3,11 @@
   "displayName": "Forge Runner",
   "description": "High-precision Gherkin & Playwright-BDD Test Runner with AI Self-Healing",
   "version": "2.0.0-rc.10",
-  "publisher": "rohit",
+  "publisher": "ForgeTest AI",
   "icon": "resources/image.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/rohit/playwright-bdd-runner"
+    "url": "https://github.com/ForgeTest-AI/ForgeRunner"
   },
   "license": "MIT",
   "engines": {
@@ -123,7 +123,10 @@
         "forge-runner.ai.provider": {
           "type": "string",
           "default": "vscode-lm",
-          "enum": ["vscode-lm", "anthropic"],
+          "enum": [
+            "vscode-lm",
+            "anthropic"
+          ],
           "description": "LLM provider for BDD AI Assistant."
         },
         "forge-runner.ai.mcpServerPath": {
@@ -144,7 +147,10 @@
         "forge-runner.testing.framework": {
           "type": "string",
           "default": "playwright-bdd",
-          "enum": ["playwright-bdd", "cucumber"],
+          "enum": [
+            "playwright-bdd",
+            "cucumber"
+          ],
           "description": "The BDD framework to use when executing tests via the Test Explorer."
         },
         "forge-runner.playwright.configPath": {
@@ -205,4 +211,3 @@
     "reflect-metadata": "^0.2.2"
   }
 }
-

@@ -8,6 +8,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
+const MAX_BUFFER = 10 * 1024 * 1024; // 10MB — prevents truncated JSON
 
 @injectable()
 export class PlaywrightBddAdapter implements IBddAdapter {
@@ -42,7 +43,7 @@ export class PlaywrightBddAdapter implements IBddAdapter {
                 } else {
                     // Playwright uses JS Regex for --grep
                     // Escape regex chars in labels to be safe
-                    const escapedGreps = grepsArray.map(g => g.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'));
+                    const escapedGreps = grepsArray.map(g => g.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
                     args.push('--grep');
                     args.push(`"${escapedGreps.join('|')}"`);
                 }
@@ -50,6 +51,29 @@ export class PlaywrightBddAdapter implements IBddAdapter {
             Array.from(files).forEach(f => args.push(f));
         }
         return args;
+    }
+
+    /**
+     * Collect all TestItems that are part of this run (for lifecycle tracking).
+     */
+    private collectIncludedItems(request: vscode.TestRunRequest, controller: vscode.TestController): vscode.TestItem[] {
+        const items: vscode.TestItem[] = [];
+        if (request.include && request.include.length > 0) {
+            for (const item of request.include) {
+                if (item.children.size > 0) {
+                    // Feature-level: include all children
+                    item.children.forEach(child => items.push(child));
+                } else {
+                    items.push(item);
+                }
+            }
+        } else {
+            // Running all: collect every scenario
+            controller.items.forEach(featureItem => {
+                featureItem.children.forEach(child => items.push(child));
+            });
+        }
+        return items;
     }
 
     /**
@@ -75,34 +99,46 @@ export class PlaywrightBddAdapter implements IBddAdapter {
             ? path.join(workspaceFolder.uri.fsPath, projectRootRelative) 
             : workspaceFolder.uri.fsPath;
 
+        // Mark all included items as "started" (shows spinner in Testing View)
+        const includedItems = this.collectIncludedItems(request, controller);
+        for (const item of includedItems) {
+            run.started(item);
+        }
+
+        // Track which items received a result (for fallback marking)
+        const reportedItemIds = new Set<string>();
+
         try {
             run.appendOutput(`Generating BDD files in ${executionDir} (npx bddgen)...\r\n`);
-            // Always run bddgen before tests
-            await execAsync('npx bddgen', { cwd: executionDir });
+            await execAsync('npx bddgen', { cwd: executionDir, maxBuffer: MAX_BUFFER });
 
             run.appendOutput('Running Playwright tests...\r\n');
             
             const args = this.getRunArgs(request, run);
-            
-            // Build command with config path if provided
             const command = `npx playwright test --config=${configPath} --reporter=json ${args.join(' ')}`.trim();
             
             run.appendOutput(`Executing: ${command}\r\n`);
-            const { stdout, stderr } = await execAsync(command, { cwd: executionDir });
+            const { stdout, stderr } = await execAsync(command, { cwd: executionDir, maxBuffer: MAX_BUFFER });
             
             if (stderr) {
-                run.appendOutput(`Stderr during execution: ${stderr}\r\n`);
+                run.appendOutput(`Stderr: ${stderr}\r\n`);
             }
-            this.reportResults(stdout, request, run, controller);
+            this.reportResults(stdout, run, controller, reportedItemIds);
 
         } catch (error: any) {
             if (error.stdout) {
                 run.appendOutput('Playwright reported test failures.\r\n');
-                this.reportResults(error.stdout, request, run, controller);
+                this.reportResults(error.stdout, run, controller, reportedItemIds);
             } else {
                 run.appendOutput(`Execution failed critically: ${error.message}\r\n`);
             }
         } finally {
+            // Mark any included items that didn't get a result as "errored"
+            for (const item of includedItems) {
+                if (!reportedItemIds.has(item.id)) {
+                    run.errored(item, new vscode.TestMessage('Test result not captured — check Forge Runner output for details.'));
+                }
+            }
             run.appendOutput('Test run completed.\r\n');
             run.end();
         }
@@ -128,9 +164,15 @@ export class PlaywrightBddAdapter implements IBddAdapter {
             ? path.join(workspaceFolder.uri.fsPath, projectRootRelative) 
             : workspaceFolder.uri.fsPath;
 
+        // Mark all included items as "started"
+        const includedItems = this.collectIncludedItems(request, controller);
+        for (const item of includedItems) {
+            run.started(item);
+        }
+
         try {
             run.appendOutput(`Generating BDD files for Debug in ${executionDir} (npx bddgen)...\r\n`);
-            await execAsync('npx bddgen', { cwd: executionDir });
+            await execAsync('npx bddgen', { cwd: executionDir, maxBuffer: MAX_BUFFER });
 
             const args = this.getRunArgs(request, run);
             run.appendOutput(`Starting Playwright Debugger with args: ${args.join(' ')}\r\n`);
@@ -148,12 +190,11 @@ export class PlaywrightBddAdapter implements IBddAdapter {
                     ...args
                 ],
                 env: {
-                    PWDEBUG: '1' // '1' is the standard for triggering Playwright Inspector and breakpoints
+                    PWDEBUG: '1'
                 },
                 console: 'internalConsole',
                 internalConsoleOptions: 'neverOpen',
                 outputCapture: 'std',
-                // Important for debugger attachment
                 skipFiles: [
                     '<node_internals>/**'
                 ]
@@ -178,7 +219,7 @@ export class PlaywrightBddAdapter implements IBddAdapter {
         }
     }
 
-    private reportResults(stdout: string, request: vscode.TestRunRequest, run: vscode.TestRun, controller: vscode.TestController) {
+    private reportResults(stdout: string, run: vscode.TestRun, controller: vscode.TestController, reportedItemIds: Set<string>) {
         try {
             // Sometimes stdout has non-json prefix logs from 'playwright test'
             const jsonStartOffset = stdout.indexOf('{');
@@ -186,23 +227,32 @@ export class PlaywrightBddAdapter implements IBddAdapter {
             const results = JSON.parse(jsonString);
             
             for (const suite of results.suites || []) {
-                this.processSuite(suite, run, controller, null);
+                this.processSuite(suite, run, controller, null, reportedItemIds);
             }
         } catch (e: any) {
             run.appendOutput(`Failed to parse test results JSON: ${e.message}\r\n`);
+            run.appendOutput(`Raw output (first 500 chars): ${stdout.substring(0, 500)}\r\n`);
         }
     }
 
-    private processSuite(suite: any, run: vscode.TestRun, controller: vscode.TestController, parentFeatureItem: vscode.TestItem | null) {
-        // Try to identify if this suite represents a Feature file in our Controller
+    private processSuite(suite: any, run: vscode.TestRun, controller: vscode.TestController, parentFeatureItem: vscode.TestItem | null, reportedItemIds: Set<string>) {
         let currentFeatureItem = parentFeatureItem;
         if (!currentFeatureItem) {
-            // Search all top-level items (Features) to see if this suite title matches the Feature name
+            // Match by suite title against feature label
             controller.items.forEach(item => {
                 if (suite.title && item.label && suite.title.includes(item.label)) {
                     currentFeatureItem = item;
                 }
             });
+
+            // Fallback: match by file path if the suite has a file property
+            if (!currentFeatureItem && suite.file) {
+                controller.items.forEach(item => {
+                    if (item.uri && item.uri.fsPath.endsWith(suite.file)) {
+                        currentFeatureItem = item;
+                    }
+                });
+            }
         }
 
         // Process actual tests (Scenarios)
@@ -210,22 +260,30 @@ export class PlaywrightBddAdapter implements IBddAdapter {
             let scenarioItem: vscode.TestItem | undefined = undefined;
 
             if (currentFeatureItem) {
-                // Look for the scenario inside the matched feature
+                // Exact match first
                 currentFeatureItem.children.forEach(child => {
-                    if (test.title.includes(child.label)) {
+                    if (!scenarioItem && child.label === test.title) {
                         scenarioItem = child;
                     }
                 });
+                // Partial match fallback
+                if (!scenarioItem) {
+                    currentFeatureItem.children.forEach(child => {
+                        if (!scenarioItem && (test.title.includes(child.label) || child.label.includes(test.title))) {
+                            scenarioItem = child;
+                        }
+                    });
+                }
             } else {
-                // Global fallback: just search the entire tree for a matching scenario name
+                // Global fallback: search the entire tree
                 scenarioItem = this.findTestItemByLabel(controller.items, test.title);
             }
 
             if (scenarioItem) {
-                // Extract result
-                const testResult = test.results?.[0]; // Get the first run attempt
+                const testResult = test.results?.[0];
                 if (testResult) {
                     const duration = testResult.duration || 0;
+                    reportedItemIds.add(scenarioItem.id);
                     if (testResult.status === 'passed' || testResult.status === 'expected') {
                         this.testStateStore.recordSuccess(scenarioItem.id);
                         run.passed(scenarioItem, duration);
@@ -234,6 +292,7 @@ export class PlaywrightBddAdapter implements IBddAdapter {
                         this.testStateStore.recordFailure(scenarioItem.id, errorMsg);
                         run.failed(scenarioItem, new vscode.TestMessage(errorMsg), duration);
                     } else if (testResult.status === 'skipped') {
+                        reportedItemIds.add(scenarioItem.id);
                         run.skipped(scenarioItem);
                     }
                 }
@@ -244,7 +303,7 @@ export class PlaywrightBddAdapter implements IBddAdapter {
 
         // Recurse into sub-suites
         for (const subSuite of suite.suites || []) {
-            this.processSuite(subSuite, run, controller, currentFeatureItem);
+            this.processSuite(subSuite, run, controller, currentFeatureItem, reportedItemIds);
         }
     }
 
@@ -254,7 +313,9 @@ export class PlaywrightBddAdapter implements IBddAdapter {
             if (found) {
                 return;
             }
-            if (label.includes(item.label)) {
+            if (item.label === label) {
+                found = item;
+            } else if (label.includes(item.label) || item.label.includes(label)) {
                 found = item;
             } else if (item.children.size > 0) {
                 const childFound = this.findTestItemByLabel(item.children, label);
@@ -266,3 +327,4 @@ export class PlaywrightBddAdapter implements IBddAdapter {
         return found;
     }
 }
+
