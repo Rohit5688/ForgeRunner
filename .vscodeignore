@@ -6,7 +6,6 @@ src/**
 .editorconfig
 tsconfig.json
 package-lock.json
-docs/*.png
 docs/architecture_audit.md
 docs/feature_gap_analysis.md
 docs/implementation_plan.md
@@ -15,7 +14,6 @@ docs/progress_review.md
 docs/requirements.md
 docs/ui_walkthrough.md
 docs/v1_feature_evaluation.md
-README.md
 CHANGELOG.md
 vsc-extension-quickstart.md
 webpack.config.js

@@ -2,7 +2,7 @@
   "name": "forge-runner",
   "displayName": "Forge Runner",
   "description": "High-precision Gherkin & Playwright-BDD Test Runner with AI Self-Healing",
-  "version": "2.0.0-rc.9",
+  "version": "2.0.0-rc.10",
   "publisher": "rohit",
   "icon": "resources/image.png",
   "repository": {
