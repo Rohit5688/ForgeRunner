@@ -8,14 +8,19 @@ import { injectable } from 'inversify';
 export class WorkspaceManager {
 
     /**
-     * Returns the projectRoot prefix for glob patterns.
-     * If projectRoot is set (e.g., "my-app"), all search patterns
-     * will be scoped under that folder relative to the workspace root.
+     * Returns the projectRoot prefix for glob patterns, stripped of leading `./` or `/`.
      */
     private getProjectRootPrefix(): string {
         const config = vscode.workspace.getConfiguration('forge-runner.playwright');
         const projectRoot = config.get<string>('projectRoot', '');
-        return projectRoot ? `${projectRoot}/` : '';
+        if (!projectRoot) return '';
+        
+        let cleanRoot = projectRoot.replace(/^[\.\/]+/, '');
+        return cleanRoot ? `${cleanRoot}/` : '';
+    }
+
+    private cleanPath(p: string): string {
+        return p.replace(/^[\.\/]+/, '');
     }
 
     /**
@@ -23,15 +28,13 @@ export class WorkspaceManager {
      */
     public async findFeatureFiles(): Promise<vscode.Uri[]> {
         const config = vscode.workspace.getConfiguration('forge-runner.playwright');
-        const featureFolder = config.get<string>('featureFolder', '');
+        const featureFolder = this.cleanPath(config.get<string>('featureFolder', ''));
         const prefix = this.getProjectRootPrefix();
 
         let pattern: string;
         if (featureFolder) {
-            // e.g., "my-app/features/**/*.feature"
             pattern = `${prefix}${featureFolder}/**/*.feature`;
         } else {
-            // e.g., "my-app/**/*.feature" or "**/*.feature"
             pattern = `${prefix}**/*.feature`;
         }
 
@@ -39,27 +42,28 @@ export class WorkspaceManager {
     }
 
     /**
-     * Finds all TypeScript files that might contain step definitions.
+     * Finds all TypeScript/JavaScript files that might contain step definitions.
      */
     public async findStepDefinitionFiles(): Promise<vscode.Uri[]> {
         const config = vscode.workspace.getConfiguration('forge-runner.playwright');
-        const stepsFolder = config.get<string>('stepsFolder', '');
-        const stepsFilePattern = config.get<string>('stepsFilePattern', '');
+        const stepsFolder = this.cleanPath(config.get<string>('stepsFolder', ''));
+        const stepsFilePattern = this.cleanPath(config.get<string>('stepsFilePattern', ''));
         const prefix = this.getProjectRootPrefix();
 
         let pattern: string;
-        if (stepsFolder && stepsFilePattern) {
-            // Both specified — e.g., "my-app/steps/**/*.steps.{js,ts}"
-            pattern = `${prefix}${stepsFolder}/${stepsFilePattern}`;
-        } else if (stepsFilePattern) {
-            // Only pattern — e.g., "my-app/**/*.steps.{js,ts}"
-            pattern = `${prefix}${stepsFilePattern}`;
+        
+        if (stepsFilePattern) {
+            // If the user provided a full pattern like "src/step-definitions/*.{ts,js}", use it directly
+            // If they provided just "*.{ts,js}", prepend the folder if it exists
+            if (stepsFolder && !stepsFilePattern.includes('/')) {
+                pattern = `${prefix}${stepsFolder}/**/${stepsFilePattern}`;
+            } else {
+                pattern = `${prefix}${stepsFilePattern}`;
+            }
         } else if (stepsFolder) {
-            // Only folder — e.g., "my-app/steps/**/*.ts"
-            pattern = `${prefix}${stepsFolder}/**/*.ts`;
+            pattern = `${prefix}${stepsFolder}/**/*.{ts,js,mjs,mts}`;
         } else {
-            // Nothing configured — broad search under projectRoot
-            pattern = `${prefix}**/*.ts`;
+            pattern = `${prefix}**/*.{ts,js,mjs,mts}`;
         }
 
         return vscode.workspace.findFiles(pattern, '**/node_modules/**');
