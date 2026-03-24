@@ -49,7 +49,7 @@ export class McpBridgeService {
 
         // 2. Check Standard installation paths
         const homeDir = os.homedir();
-        const standardPath = path.join(homeDir, 'mcp', 'playwright-bdd-pom-mcp', 'dist', 'index.js');
+        const standardPath = path.join(homeDir, 'mcp', 'TestForge', 'dist', 'index.js');
         if (fs.existsSync(standardPath)) {
             this.logger.appendLine(`[MCP Discovery] Found MCP server in standard directory: ${standardPath}`);
             return { command: 'node', args: [standardPath] };
@@ -72,7 +72,7 @@ export class McpBridgeService {
                             const server = data.mcpServers[serverName];
                             if (server.command === 'node' && server.args) {
                                 for (const arg of server.args) {
-                                    if (arg.includes('playwright-bdd-pom-mcp') && fs.existsSync(arg)) {
+                                    if (arg.includes('TestForge') && fs.existsSync(arg)) {
                                         this.logger.appendLine(`[MCP Discovery] Discovered path via ${serverName} config: ${arg}`);
                                         return { command: 'node', args: [arg] };
                                     }
@@ -88,11 +88,11 @@ export class McpBridgeService {
 
         // 4. Guaranteed Fallback: NPX Registry Download
         this.logger.appendLine(`[MCP Discovery] Local path not found. Falling back to guaranteed NPX resolution.`);
-        return { command: 'npx', args: ['-y', 'playwright-bdd-pom-mcp'] };
+        return { command: 'npx', args: ['-y', 'testforge'] };
     }
 
     /**
-     * Connects to the playwright-bdd-pom-mcp server via stdio.
+     * Connects to the TestForge server via stdio.
      */
     public async connect(): Promise<boolean> {
         this.updateStatusBar(false, 'Connecting...');
