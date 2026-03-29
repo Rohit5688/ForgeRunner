@@ -18,6 +18,20 @@ export class PlaywrightBddAdapter implements IBddAdapter {
         @inject(TYPES.TestStateStore) private testStateStore: TestStateStore
     ) {}
 
+    private sanitizeShellArg(arg: string): string {
+        if (process.platform === 'win32') {
+            return `"${arg.replace(/"/g, '""')}"`; // Windows cmd escape
+        }
+        return `"${arg.replace(/(["\s'$`\\])/g,'\\$1')}"`; // Unix bash escape
+    }
+
+    private async getPackageManagerPrefix(executionDir: string): Promise<string> {
+        if (fs.existsSync(path.join(executionDir, 'yarn.lock'))) return 'yarn';
+        if (fs.existsSync(path.join(executionDir, 'pnpm-lock.yaml'))) return 'pnpm exec';
+        if (fs.existsSync(path.join(executionDir, 'bun.lockb'))) return 'bunx';
+        return 'npx';
+    }
+
     private getRunArgs(request: vscode.TestRunRequest, run: vscode.TestRun, executionDir: string): string[] {
         const args: string[] = [];
         if (request.include && request.include.length > 0) {
@@ -41,7 +55,7 @@ export class PlaywrightBddAdapter implements IBddAdapter {
                     // Playwright uses JS Regex for --grep
                     const escapedGreps = grepsArray.map(g => g.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
                     args.push('--grep');
-                    args.push(`"${escapedGreps.join('|')}"`);
+                    args.push(this.sanitizeShellArg(escapedGreps.join('|')));
                 }
             }
         }
@@ -102,10 +116,12 @@ export class PlaywrightBddAdapter implements IBddAdapter {
 
         // Track which items received a result (for fallback marking)
         const reportedItemIds = new Set<string>();
+        let jsonOutputFile = '';
 
         try {
-            run.appendOutput(`Generating BDD files in ${executionDir} (npx bddgen)...\r\n`);
-            await execAsync('npx bddgen', { cwd: executionDir, maxBuffer: MAX_BUFFER });
+            const pkgManager = await this.getPackageManagerPrefix(executionDir);
+            run.appendOutput(`Generating BDD files in ${executionDir} (${pkgManager} bddgen)...\r\n`);
+            await execAsync(`${pkgManager} bddgen`, { cwd: executionDir, maxBuffer: MAX_BUFFER });
 
             run.appendOutput('Running Playwright tests...\r\n');
             
@@ -113,10 +129,11 @@ export class PlaywrightBddAdapter implements IBddAdapter {
             
             // Write JSON results to a temp file so we don't need to pass --reporter=json
             // This preserves the user's configured reporters (HTML, headed mode, etc.)
-            const jsonOutputFile = path.join(os.tmpdir(), `forge-results-${Date.now()}.json`);
+            jsonOutputFile = path.join(os.tmpdir(), `forge-results-${Date.now()}.json`);
             
             // Don't pass --reporter on CLI — let the user's playwright.config.ts handle it
-            const command = `npx playwright test --config=${configPath} ${args.join(' ')}`.trim();
+            const configArg = this.sanitizeShellArg(configPath);
+            const command = `${pkgManager} playwright test --config=${configArg} ${args.join(' ')}`.trim();
             
             run.appendOutput(`Executing: ${command}\r\n`);
             
@@ -156,7 +173,6 @@ export class PlaywrightBddAdapter implements IBddAdapter {
                     const jsonContent = fs.readFileSync(jsonOutputFile, 'utf8');
                     this.reportResultsFromJson(jsonContent, run, controller, reportedItemIds);
                     jsonParsed = true;
-                    fs.unlinkSync(jsonOutputFile); // Clean up
                 }
             } catch (parseErr: any) {
                 run.appendOutput(`Could not parse JSON results file: ${parseErr.message}\r\n`);
@@ -187,6 +203,9 @@ export class PlaywrightBddAdapter implements IBddAdapter {
         } catch (error: any) {
             run.appendOutput(`Execution failed critically: ${error.message}\r\n`);
         } finally {
+            if (jsonOutputFile && fs.existsSync(jsonOutputFile)) {
+                try { fs.unlinkSync(jsonOutputFile); } catch (e) {} // Clean up
+            }
             // Mark any included items that didn't get a result as "errored"
             for (const item of includedItems) {
                 if (!reportedItemIds.has(item.id)) {
@@ -224,19 +243,22 @@ export class PlaywrightBddAdapter implements IBddAdapter {
             run.started(item);
         }
 
+        let jsonOutputFile = '';
         try {
-            run.appendOutput(`Generating BDD files for Debug in ${executionDir} (npx bddgen)...\r\n`);
-            await execAsync('npx bddgen', { cwd: executionDir, maxBuffer: MAX_BUFFER });
+            const pkgManager = await this.getPackageManagerPrefix(executionDir);
+            run.appendOutput(`Generating BDD files for Debug in ${executionDir} (${pkgManager} bddgen)...\r\n`);
+            await execAsync(`${pkgManager} bddgen`, { cwd: executionDir, maxBuffer: MAX_BUFFER });
 
             const args = this.getRunArgs(request, run, executionDir);
             run.appendOutput(`Starting Playwright Debugger with args: ${args.join(' ')}\r\n`);
 
+            jsonOutputFile = path.join(os.tmpdir(), `forge-debug-results-${Date.now()}.json`);
             const debugConfig: vscode.DebugConfiguration = {
                 type: 'node',
                 request: 'launch',
                 name: 'Debug Playwright BDD',
                 cwd: executionDir,
-                runtimeExecutable: 'npx',
+                runtimeExecutable: pkgManager,
                 runtimeArgs: [
                     'playwright',
                     'test',
@@ -244,7 +266,8 @@ export class PlaywrightBddAdapter implements IBddAdapter {
                     ...args
                 ],
                 env: {
-                    PWDEBUG: '1'
+                    PWDEBUG: '1',
+                    PLAYWRIGHT_JSON_OUTPUT_NAME: jsonOutputFile
                 },
                 console: 'internalConsole',
                 internalConsoleOptions: 'neverOpen',
@@ -259,9 +282,29 @@ export class PlaywrightBddAdapter implements IBddAdapter {
                 throw new Error('Failed to start debug session.');
             }
             
+            const reportedItemIds = new Set<string>();
             const disposable = vscode.debug.onDidTerminateDebugSession((session) => {
                 if (session.name === debugConfig.name) {
                     run.appendOutput('Debug session ended.\r\n');
+                    
+                    if (fs.existsSync(jsonOutputFile)) {
+                        try {
+                            const jsonContent = fs.readFileSync(jsonOutputFile, 'utf8');
+                            this.reportResultsFromJson(jsonContent, run, controller, reportedItemIds);
+                        } catch (e: any) {
+                            run.appendOutput(`Failed to parse debug JSON: ${e.message}\r\n`);
+                        } finally {
+                            try { fs.unlinkSync(jsonOutputFile); } catch(e) {}
+                        }
+                    }
+
+                    // Fallback for missing results
+                    for (const item of includedItems) {
+                        if (!reportedItemIds.has(item.id)) {
+                            run.errored(item, new vscode.TestMessage('Debug session completed, but result was uncaptured.'));
+                        }
+                    }
+
                     run.end();
                     disposable.dispose();
                 }
@@ -269,6 +312,9 @@ export class PlaywrightBddAdapter implements IBddAdapter {
 
         } catch (error: any) {
             run.appendOutput(`Failed to start debugger: ${error.message}\r\n`);
+            if (jsonOutputFile && fs.existsSync(jsonOutputFile)) {
+                try { fs.unlinkSync(jsonOutputFile); } catch (e) {}
+            }
             run.end();
         }
     }

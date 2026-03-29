@@ -72,7 +72,7 @@ export class McpBridgeService {
                             const server = data.mcpServers[serverName];
                             if (server.command === 'node' && server.args) {
                                 for (const arg of server.args) {
-                                    if (arg.includes('TestForge') && fs.existsSync(arg)) {
+                                    if (arg.includes('TestForge') && fs.existsSync(arg) && fs.statSync(arg).isFile() && arg.endsWith('.js')) {
                                         this.logger.appendLine(`[MCP Discovery] Discovered path via ${serverName} config: ${arg}`);
                                         return { command: 'node', args: [arg] };
                                     }
