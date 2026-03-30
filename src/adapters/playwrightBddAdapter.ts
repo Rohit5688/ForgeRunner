@@ -226,6 +226,7 @@ export class PlaywrightBddAdapter implements IBddAdapter {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
             run.appendOutput('No workspace folder found.\r\n');
+            run.end();
             return;
         }
 
@@ -243,7 +244,10 @@ export class PlaywrightBddAdapter implements IBddAdapter {
             run.started(item);
         }
 
+        // BUG-B FIX: Declare outside try so finally can always access these.
         let jsonOutputFile = '';
+        let sessionStarted = false;
+
         try {
             const pkgManager = await this.getPackageManagerPrefix(executionDir);
             run.appendOutput(`Generating BDD files for Debug in ${executionDir} (${pkgManager} bddgen)...\r\n`);
@@ -281,7 +285,8 @@ export class PlaywrightBddAdapter implements IBddAdapter {
             if (!started) {
                 throw new Error('Failed to start debug session.');
             }
-            
+
+            sessionStarted = true; // session is now managed by the debug event handler below
             const reportedItemIds = new Set<string>();
             const disposable = vscode.debug.onDidTerminateDebugSession((session) => {
                 if (session.name === debugConfig.name) {
@@ -312,10 +317,16 @@ export class PlaywrightBddAdapter implements IBddAdapter {
 
         } catch (error: any) {
             run.appendOutput(`Failed to start debugger: ${error.message}\r\n`);
-            if (jsonOutputFile && fs.existsSync(jsonOutputFile)) {
-                try { fs.unlinkSync(jsonOutputFile); } catch (e) {}
+        } finally {
+            // BUG-B FIX: If session never started (e.g. bddgen or startDebugging threw),
+            // clean up temp file and end the run here. If session DID start, the
+            // onDidTerminateDebugSession handler owns the lifecycle.
+            if (!sessionStarted) {
+                if (jsonOutputFile && fs.existsSync(jsonOutputFile)) {
+                    try { fs.unlinkSync(jsonOutputFile); } catch (e) {}
+                }
+                run.end();
             }
-            run.end();
         }
     }
 

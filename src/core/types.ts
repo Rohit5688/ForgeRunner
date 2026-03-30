@@ -24,4 +24,6 @@ export const TYPES = {
     AutoHealCodeLensProvider: Symbol.for('AutoHealCodeLensProvider'),
     ExecutionCodeLensProvider: Symbol.for('ExecutionCodeLensProvider'),
     AutoDiscoveryService: Symbol.for('AutoDiscoveryService'),
+    TestHistoryView: Symbol.for('TestHistoryView'),
+    WorkspaceExplorer: Symbol.for('WorkspaceExplorer'),
 };

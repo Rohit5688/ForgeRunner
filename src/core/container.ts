@@ -25,6 +25,8 @@ import { TestStateStore } from './testStateStore.js';
 import { AutoHealCodeLensProvider } from '../providers/autoHealCodeLens.js';
 import { ExecutionCodeLensProvider } from '../providers/executionCodeLens.js';
 import { AutoDiscoveryService } from './autoDiscovery.js';
+import { TestHistoryView } from '../ui/testHistoryView.js';
+import { WorkspaceExplorerProvider } from '../ui/workspaceExplorer.js';
 import { TYPES } from './types.js';
 
 export { TYPES };
@@ -57,5 +59,7 @@ container.bind<TestStateStore>(TYPES.TestStateStore).to(TestStateStore).inSingle
 container.bind<AutoHealCodeLensProvider>(TYPES.AutoHealCodeLensProvider).to(AutoHealCodeLensProvider).inSingletonScope();
 container.bind<ExecutionCodeLensProvider>(TYPES.ExecutionCodeLensProvider).to(ExecutionCodeLensProvider).inSingletonScope();
 container.bind<AutoDiscoveryService>(TYPES.AutoDiscoveryService).to(AutoDiscoveryService).inSingletonScope();
+container.bind<TestHistoryView>(TYPES.TestHistoryView).to(TestHistoryView).inSingletonScope();
+container.bind<WorkspaceExplorerProvider>(TYPES.WorkspaceExplorer).to(WorkspaceExplorerProvider).inSingletonScope();
 
 export { container };

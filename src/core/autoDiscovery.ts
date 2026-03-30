@@ -147,6 +147,16 @@ export class AutoDiscoveryService {
 
             const updatesMade = Boolean(newProjectRoot || newFeatureFolder || newStepsFolder);
             if (updatesMade) {
+                // Register to the workspace store so FEAT-005 WorkspaceExplorer can display it
+                this.discoveredWorkspaces.set(workspaceFolder.uri.fsPath, {
+                    name: workspaceFolder.name,
+                    rootPath: workspaceFolder.uri.fsPath,
+                    projectRoot: newProjectRoot,
+                    featureFolder: newFeatureFolder,
+                    stepsFolder: newStepsFolder,
+                    featureCount: featureFiles.length
+                });
+
                 vscode.window.showInformationMessage(
                     'Forge Runner automatically detected and applied your Playwright BDD project configuration.'
                 );
@@ -155,4 +165,36 @@ export class AutoDiscoveryService {
             this.logger.appendLine(`[AutoDiscovery] Failed to update workspace settings: ${e}`);
         }
     }
+
+    // ── FEAT-005: Workspace Registry (read by WorkspaceExplorer) ─────────────
+
+    /** In-memory store of discovered workspaces, keyed by root path. */
+    private discoveredWorkspaces = new Map<string, DiscoveredWorkspace>();
+
+    /** Returns the list of all workspaces discovered since extension activation. */
+    public getDiscoveredWorkspaces(): DiscoveredWorkspace[] {
+        // If nothing discovered yet, fall back to current VS Code workspace folders
+        // so the explorer always shows something useful on first open.
+        if (this.discoveredWorkspaces.size === 0) {
+            return (vscode.workspace.workspaceFolders ?? []).map(wf => ({
+                name: wf.name,
+                rootPath: wf.uri.fsPath,
+                projectRoot: '',
+                featureFolder: '',
+                stepsFolder: '',
+                featureCount: 0
+            }));
+        }
+        return [...this.discoveredWorkspaces.values()];
+    }
+}
+
+/** Shape of a discovered workspace entry. */
+export interface DiscoveredWorkspace {
+    name: string;
+    rootPath: string;
+    projectRoot: string;
+    featureFolder: string;
+    stepsFolder: string;
+    featureCount: number;
 }

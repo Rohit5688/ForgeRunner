@@ -18,10 +18,7 @@
   ],
   "activationEvents": [
     "onLanguage:gherkin",
-    "onFileSystem:**/playwright.config.{ts,js}",
-    "onView:forgeAiSidebar",
-    "onView:forgeUserStore",
-    "onCommand:forge-runner.showOnboarding"
+    "onFileSystem:**/playwright.config.{ts,js}"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -73,9 +70,69 @@
         "title": "Forge: Reconnect MCP Server",
         "category": "Forge Runner",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "forge-runner.showTestHistory",
+        "title": "Forge: Show Test History",
+        "category": "Forge Runner",
+        "icon": "$(history)"
+      },
+      {
+        "command": "forge-runner.feature.generateSteps",
+        "title": "✨ Generate Step Definitions (Forge AI)",
+        "category": "Forge Runner"
+      },
+      {
+        "command": "forge-runner.feature.validateCoverage",
+        "title": "🔍 Validate Step Coverage (Forge AI)",
+        "category": "Forge Runner"
+      },
+      {
+        "command": "forge-runner.feature.extractOutline",
+        "title": "♻️ Extract Scenario Outline (Forge AI)",
+        "category": "Forge Runner"
+      },
+      {
+        "command": "forge-runner.feature.formatFile",
+        "title": "🧹 Format Feature File",
+        "category": "Forge Runner"
+      },
+      {
+        "command": "forge-runner.analyzeCIFailure",
+        "title": "Forge: Analyze CI Failure (Forge AI)",
+        "category": "Forge Runner",
+        "icon": "$(bug)"
+      },
+      {
+        "command": "forge-runner.workspace.switchTo",
+        "title": "Forge: Set as Active Project",
+        "category": "Forge Runner",
+        "icon": "$(arrow-right)"
       }
     ],
     "menus": {
+      "editor/context": [
+        {
+          "command": "forge-runner.feature.generateSteps",
+          "when": "editorLangId == feature && editorFocus",
+          "group": "forge@1"
+        },
+        {
+          "command": "forge-runner.feature.validateCoverage",
+          "when": "editorLangId == feature && editorFocus",
+          "group": "forge@2"
+        },
+        {
+          "command": "forge-runner.feature.extractOutline",
+          "when": "editorLangId == feature && editorFocus",
+          "group": "forge@3"
+        },
+        {
+          "command": "forge-runner.feature.formatFile",
+          "when": "editorLangId == feature && editorFocus",
+          "group": "forge@4"
+        }
+      ],
       "editor/title": [
         {
           "command": "forge-runner.showReport",
@@ -108,6 +165,11 @@
           "command": "forge-runner.reconnectMcp",
           "when": "view == forgeAiSidebar || view == workbench.view.testing",
           "group": "navigation@4"
+        },
+        {
+          "command": "forge-runner.analyzeCIFailure",
+          "when": "view == forgeAiSidebar || view == workbench.view.testing",
+          "group": "navigation@5"
         }
       ]
     },
@@ -133,6 +195,12 @@
           "id": "forgeUserStore",
           "name": "Project Dashboard",
           "icon": "$(dashboard)"
+        },
+        {
+          "type": "tree",
+          "id": "forgeWorkspaceExplorer",
+          "name": "Workspace Explorer",
+          "icon": "$(folder-library)"
         }
       ]
     },

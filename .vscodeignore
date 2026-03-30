@@ -9,6 +9,9 @@ package-lock.json
 docs/architecture_audit.md
 docs/feature_gap_analysis.md
 docs/implementation_plan.md
+docs/implementation_plan_v3.md
+docs/code_review_report.md
+docs/BUG-001_ForgeRunner_QA_Fixes.md
 docs/mcp_bridge.md
 docs/progress_review.md
 docs/requirements.md
@@ -20,4 +23,16 @@ webpack.config.js
 scripts/**
 test-parsers.ts
 verify.ts
+# Scratch files at root
+forgerunner_qa_review.md
+replace.js
+test_cuc.js
+test_extraction.js
+test_ts.js
+test_ts_regex.js
+# Bloated devDependency folders
+node_modules/.cache/**
+node_modules/@typescript-eslint/**
+node_modules/eslint/**
+node_modules/@vscode/test-electron/**
 *.vsix
